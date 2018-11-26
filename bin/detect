@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+
+# Exit early if app is clearly not Python.
+if [ ! -f requirements.txt ] && \
+   [ ! -f setup.py ] && \
+   [ ! -f Pipfile ]; then
+  exit 1
+fi
+
+echo Python

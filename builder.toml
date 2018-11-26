@@ -1,0 +1,8 @@
+[[buildpacks]]
+  id = "heroku/python"
+  uri = "."
+
+[[groups]]
+  [[groups.buildpacks]]
+    id = "heroku/python"
+    version = "0.1.0"

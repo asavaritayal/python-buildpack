@@ -1,0 +1,7 @@
+[buildpack]
+id = "heroku/python"
+version = "0.1.0"
+name = "Python"
+
+[[stacks]]
+id = "heroku-18"
