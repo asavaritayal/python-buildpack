@@ -4,23 +4,20 @@ set -ex
 
 APP_DIR=$(pwd)
 ENV_DIR="${1:?}/env"
-LAUNCH_DIR="${4:?}"
+LAYERS_DIR="${4:?}"
 
-BIN_DIR=$(cd "$(dirname "$0")"; pwd) # absolute path
-ROOT_DIR=$(dirname "$BIN_DIR")
-
-export PYTHON_VERSION="3.6.7"
+export PYTHON_VERSION="3.7.0"
 export PIP_UPDATE="9.0.2"
 
 # The location of the pre-compiled python binary.
 VENDOR_URL="https://lang-python.s3.amazonaws.com/$STACK"
-VENDORED_PYTHON="${VENDOR_URL}/runtimes/python-$PYTHON_VERSION.tar.gz"
+PYTHON_URL="${VENDOR_URL}/runtimes/python-$PYTHON_VERSION.tar.gz"
 
 # Prepare destination directory.
-PYTHON_DIR="$LAUNCH_DIR/python"
+PYTHON_DIR="$LAYERS_DIR/python"
 mkdir -p "$PYTHON_DIR"
 
-if ! curl "${VENDORED_PYTHON}" -s | tar zxv -C $PYTHON_DIR &> /dev/null; then
+if ! curl "${PYTHON_URL}" -s | tar zxv -C $PYTHON_DIR &> /dev/null; then
   echo "Requested runtime ($PYTHON_VERSION) is not available for this stack ($STACK)."
   exit 1
 fi
@@ -35,3 +32,11 @@ echo "version=\"$PYTHON_VERSION\"" > "${PYTHON_DIR}.toml"
 echo "stack=\"$STACK\"" >> "${PYTHON_DIR}.toml"
 
 pip install -r requirements.txt --exists-action=w --disable-pip-version-check --no-cache-dir
+
+if cat requirements.txt | grep -q gunicorn; then
+  cat << EOF > $LAYERS_DIR/launch.toml
+[[processes]]
+type = "web"
+command = "gunicorn gettingstarted.wsgi --log-file -"
+EOF
+fi
