@@ -36,7 +36,7 @@ cache = true
 version = "$PYTHON_VERSION"
 EOF
 
-# step 4: install pip & virtualenv
+# step 4: install pip
 
 curl -o $PYTHON_LAYER/get-pip.py -L 'https://bootstrap.pypa.io/get-pip.py'
 
