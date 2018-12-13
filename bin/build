@@ -1,42 +1,74 @@
 #!/usr/bin/env bash
+# bin/build <layers-dir> <platform-dir> <build-plan>
 
 set -ex
 
-APP_DIR=$(pwd)
-ENV_DIR="${1:?}/env"
-LAYERS_DIR="${4:?}"
+# step 1: gather inputs
 
-export PYTHON_VERSION="3.7.0"
-export PIP_UPDATE="9.0.2"
+APP_DIR="$(pwd)"
+LAYERS_DIR="$1"
 
-# The location of the pre-compiled python binary.
-VENDOR_URL="https://lang-python.s3.amazonaws.com/$STACK"
+# step 2: setup
+
+PYTHON_VERSION="3.6.7"
+PIP_UPDATE="9.0.2"
+
+VENDOR_URL="https://lang-python.s3.amazonaws.com/${STACK}"
 PYTHON_URL="${VENDOR_URL}/runtimes/python-$PYTHON_VERSION.tar.gz"
 
-# Prepare destination directory.
-PYTHON_DIR="$LAYERS_DIR/python"
-mkdir -p "$PYTHON_DIR"
+# step 3: install python
 
-if ! curl "${PYTHON_URL}" -s | tar zxv -C $PYTHON_DIR &> /dev/null; then
-  echo "Requested runtime ($PYTHON_VERSION) is not available for this stack ($STACK)."
+PYTHON_LAYER="$LAYERS_DIR/python"
+mkdir -p "$PYTHON_LAYER"
+
+if ! curl -sfL "$PYTHON_URL" | tar zx -C $PYTHON_LAYER; then
+  echo "Runtime ($PYTHON_VERSION) is not available for ($STACK)."
   exit 1
 fi
-export PATH="$PYTHON_DIR/bin:$PATH"
 
-curl -o $PYTHON_DIR/get-pip.py -L 'https://bootstrap.pypa.io/get-pip.py'
+export PATH="$PYTHON_LAYER/bin:$PATH"
 
-python "$PYTHON_DIR/get-pip.py" pip=="$PIP_UPDATE" &> /dev/null
+cat << EOF > $PYTHON_LAYER.toml
+launch = true
+cache = true
 
-# Write metadata
-echo "version=\"$PYTHON_VERSION\"" > "${PYTHON_DIR}.toml"
-echo "stack=\"$STACK\"" >> "${PYTHON_DIR}.toml"
+[metadata]
+version = "$PYTHON_VERSION"
+EOF
 
-pip install -r requirements.txt --exists-action=w --disable-pip-version-check --no-cache-dir
+# step 4: install pip & virtualenv
+
+curl -o $PYTHON_LAYER/get-pip.py -L 'https://bootstrap.pypa.io/get-pip.py'
+
+python "$PYTHON_LAYER/get-pip.py" pip=="$PIP_UPDATE"
+
+pip install --user virtualenv
+
+# step 5: run pip
+
+PIP_LAYER="$LAYERS_DIR/pip"
+mkdir -p "$PIP_LAYER"
+ln -s "$PIP_LAYER" env
+
+python -m virtualenv env
+
+source env/bin/activate
+
+pip install -r requirements.txt \
+  --exists-action=w --disable-pip-version-check --no-cache-dir
+
+echo "launch = true" > $PIP_LAYER.toml
+
+# step 6: write metadata (optional)
 
 if cat requirements.txt | grep -q gunicorn; then
-  cat << EOF > $LAYERS_DIR/launch.toml
+  script="$(grep -lnr "get_wsgi_application" **/*.py)"
+  if [ -n "$wsgi" ]; then
+    module="$(echo "$script" | sed s/.py//g | sed s/\\//./g)"
+    cat << EOF > $LAYERS_DIR/launch.toml
 [[processes]]
 type = "web"
-command = "gunicorn gettingstarted.wsgi --log-file -"
+command = "gunicorn $module --bind=0.0.0.0 --log-file -"
 EOF
+  fi
 fi
