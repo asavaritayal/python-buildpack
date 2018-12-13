@@ -42,20 +42,16 @@ curl -o $PYTHON_LAYER/get-pip.py -L 'https://bootstrap.pypa.io/get-pip.py'
 
 python "$PYTHON_LAYER/get-pip.py" pip=="$PIP_UPDATE"
 
-pip install --user virtualenv
-
 # step 5: run pip
 
 PIP_LAYER="$LAYERS_DIR/pip"
-mkdir -p "$PIP_LAYER"
-ln -s "$PIP_LAYER" env
+mkdir -p "$PIP_LAYER/modules" "$PIP_LAYER/env"
 
-python -m virtualenv env
-
-source env/bin/activate
-
-pip install -r requirements.txt \
+pip install -r requirements.txt -t "$PIP_LAYER/modules" \
+  --install-option="--install-scripts=$PIP_LAYER/bin" \
   --exists-action=w --disable-pip-version-check --no-cache-dir
+
+echo -n "$PIP_LAYER/modules/" > "$PIP_LAYER/env/PYTHONPATH"
 
 echo "launch = true" > $PIP_LAYER.toml
 
@@ -63,7 +59,7 @@ echo "launch = true" > $PIP_LAYER.toml
 
 if cat requirements.txt | grep -q gunicorn; then
   script="$(grep -lnr "get_wsgi_application" **/*.py)"
-  if [ -n "$wsgi" ]; then
+  if [ -n "$script" ]; then
     module="$(echo "$script" | sed s/.py//g | sed s/\\//./g)"
     cat << EOF > $LAYERS_DIR/launch.toml
 [[processes]]
